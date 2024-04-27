@@ -9,13 +9,13 @@ let a_Position;
 
 
 let global_rotor = make_rotation_rotor(0, [0, 0, 1]);
-let d_theta = 0;
+let d_theta = 0.05;
 
 let is_mouse_down = false;
 let mouse_old_x = undefined;
 let mouse_old_y = undefined;
-let mouse_dx = 0;
-let mouse_dy = 0;
+let mouse_dx = 0.1;
+let mouse_dy = 0.00;
 
 
 function main() {
@@ -165,15 +165,9 @@ function render(milis) {
 
     gl.uniform4fv(u_Color, new Float32Array([1.0, 1.0, 1.0, 1.0]));
 
-    //let global_rotor = make_rotation_rotor(global_rotation_angle, normalize_vec_or_bivec(global_rotation_plane));
-    
-
-    //let rot1 = make_rotation_rotor(milis/2000, normalize_vec_or_bivec([1, 1, 0]));
-    //let rot2 = make_rotation_rotor(milis/1000, normalize_vec_or_bivec([0.5, 0, 0.7]));
-
-
     //let rot_mat = rotor_to_matrix(rotor_multiply(rotor_multiply(global_rotor, rot1), rot2));
     if((mouse_dx*mouse_dx + mouse_dy*mouse_dy) > 0){
+	//negate the dy because on the canvas positive Y is down instead of up
 	global_rotor = rotor_multiply(make_rotation_rotor(d_theta, normalize_vec_or_bivec([mouse_dy, -mouse_dx, 0])), global_rotor);
 	update_sliders();
     }
@@ -275,6 +269,8 @@ function update_sliders(){
 }
 
 function make_global_rotor_from_sliders(){
+    d_theta = 0;
+    
     let global_rotation_angle = parseFloat(document.getElementById("angle_slider").value);
     let yz = parseFloat(document.getElementById("yz_input").value)
     let zx = parseFloat(document.getElementById("zx_input").value)
