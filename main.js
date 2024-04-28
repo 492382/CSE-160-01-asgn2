@@ -8,14 +8,15 @@ let u_Color;
 let a_Position;
 
 let global_rotor = make_rotation_rotor(0, [0, 0, 1]);
-let d_theta = 0.05;
+let d_theta = 0.077;
 
 let is_mouse_down = false;
 let mouse_old_x = undefined;
 let mouse_old_y = undefined;
-let mouse_dx = 0.1;
-let mouse_dy = 0.05;
+let mouse_dx = 0.01;
+let mouse_dy = 0.04;
 
+let do_animation = true;
 
 function main() {
     let canvas = document.getElementById("andy_canvas");
@@ -58,6 +59,22 @@ function addUiCallbacks() {
 	    make_global_rotor_from_sliders();
 	});
 
+
+    let checkbox = document
+	.getElementById("animation_checkbox");
+    
+    checkbox.addEventListener("input", function(event) {
+	    do_animation = event.target.checked;
+	});
+
+    SLIDER_IDS.forEach((elem_id) =>{
+	document.getElementById(elem_id)
+	    .addEventListener("input", function() {
+		checkbox.checked = false;
+		do_animation = false;
+	    });
+    });
+    
 
     let canvas = document.getElementById("andy_canvas");
 
@@ -127,7 +144,7 @@ function setupWebGL(canvas) {
 
     program = gl.createProgram();
 
-    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, vertexShader); 
     gl.attachShader(program, fragmentShader);
 
     gl.linkProgram(program);
@@ -167,9 +184,6 @@ function render(milis) {
     let animation_percent = (milis%3000)/3000;
     
     
-    gl.uniform4fv(u_Color, new Float32Array([1.0, 1.0, 1.0, 1.0]));
-
-    //let rot_mat = rotor_to_matrix(rotor_multiply(rotor_multiply(global_rotor, rot1), rot2));
     if((mouse_dx*mouse_dx + mouse_dy*mouse_dy) > 0){
 	//negate the dy because on the canvas positive Y is down instead of up
 	global_rotor = rotor_multiply(make_rotation_rotor(d_theta, normalize_vec_or_bivec([mouse_dy, -mouse_dx, 0])), global_rotor);
@@ -184,51 +198,223 @@ function render(milis) {
     draw_animal(animation_percent);
 }
 
-
 function draw_animal(animation_percent){
-    let identity = make_translation_matrix(0, 0, 0);
-    
-    let body_matrix = draw_body(animation_percent, identity);
+    let angles;
+    if(do_animation){
+	angles = get_angles_animation(animation_percent);
+	set_angle_sliders(angles);
+    }else{
+	angles = get_angles_sliders();
+    }
 
-    let tail_matrix_1 = draw_tail_1(animation_percent, body_matrix);
+    gl.uniform4fv(u_Color, new Float32Array([1.0, 0.5, 0.5, 1.0]));
+    let body_matrix = draw_body(IDENTITY_MATRIX, angles[0]);
+
+    let top_fin_matrix_1 = draw_top_fin_1(body_matrix, angles[1], angles[2]);
+    let _top_fin_matrix_2 = draw_top_fin_2(top_fin_matrix_1, angles[3], angles[4]);
+    
+    let tail_matrix_1 = draw_tail_1(body_matrix, angles[5]);
+    let tail_matrix_2 = draw_tail_2(tail_matrix_1, angles[6]);
+    let _tail_matrix_3 = draw_tail_3(tail_matrix_2, angles[7]);
+    
+    let head_matrix = draw_head(body_matrix, angles[8]);
+    let mouth_matrix_1 = draw_mouth_1(head_matrix);
+    let _mouth_matrix_2 = draw_mouth_2(mouth_matrix_1);
+
+    let _right_fin_matrix = draw_right_fin(body_matrix, angles[9], angles[10]);
+    let _left_fin_matrix = draw_left_fin(body_matrix, angles[9], angles[10]);
+
+
+    gl.uniform4fv(u_Color, new Float32Array([0.0, 0.0, 0.0, 1.0]));
+
+    let eyes_matrix = draw_eyes(head_matrix);
 }
 
-function draw_body(animation_percent, matrix_stack){
-    gl.uniform4fv(u_Color, new Float32Array([1.0, 0.0, 0.0, 1.0]));
-
-    let translate_matrix = matrix_stack;
-    let rotate_matrix = rotor_to_matrix(make_rotation_rotor(Math.sin(animation_percent * TAU)/2, [0, 0, 1]));
-    let scale_matrix = make_scale_matrix(2, 1, 1);
-
-    let move_matrix = matrix_multiply(translate_matrix, rotate_matrix);
+function draw_eyes(matrix_stack){
+    let everything_except_scale = matrix_list_multiply([
+	matrix_stack,
+	make_translation_matrix(0.2, 0.2, 0),
+    ]);
     
-    let matrix = matrix_multiply(move_matrix, scale_matrix);
-    draw_cube(
-	matrix
-    );
-    return move_matrix;
+    let matrix = matrix_multiply(everything_except_scale, make_scale_matrix(0.2, 0.2, 1));
+    
+    draw_cube(matrix);
+    
+    return everything_except_scale;
 }
 
-function draw_tail_1(animation_percent, matrix_stack){
-    gl.uniform4fv(u_Color, new Float32Array([0.0, 1.0, 0.0, 1.0]));
-
-    let translate_matrix = matrix_multiply(matrix_stack, make_translation_matrix(0, 1, 0.1));
-    let rotate_matrix = rotor_to_matrix(make_rotation_rotor((TAU/2) + Math.sin(animation_percent * TAU)/3, [0, 0, 1]));
-    let scale_matrix = make_scale_matrix(1, 0.2, 0.8);
-
-    let move_matrix = matrix_multiply(translate_matrix, rotate_matrix);
+function draw_right_fin(matrix_stack, angle1, angle2){
+    let everything_except_scale = matrix_list_multiply([
+	matrix_stack,
+	make_translation_matrix(0.8, -0.5, -0.5),
+	rotor_to_matrix(
+	    rotor_multiply(
+		make_rotation_rotor(angle1, [0, 0, 1]),
+		make_rotation_rotor(angle2, [1, 0, 0])
+	    )),
+	make_translation_matrix(0, -0.5, 0),
+    ]);
     
-    let matrix = matrix_multiply(move_matrix, scale_matrix);
-    draw_cube(
-	matrix
-    );
-    return move_matrix;
+    let matrix = matrix_multiply(everything_except_scale, make_scale_matrix(0.3, 1, 0.08));
+    
+    draw_cube(matrix);
+    
+    return everything_except_scale;
+}
+
+function draw_left_fin(matrix_stack, angle1, angle2){
+    return draw_right_fin(matrix_multiply(make_scale_matrix(1, 1, -1), matrix_stack), angle1, angle2);
+    
+}
+
+function draw_body(matrix_stack, angle){
+    
+    
+    let everything_except_scale = matrix_list_multiply([
+	matrix_stack,
+	rotor_to_matrix(make_rotation_rotor(angle, [0, 0, 1]))
+    ]);
+    
+    let matrix = matrix_multiply(everything_except_scale, make_scale_matrix(2.5, 1, 1));
+    
+    draw_cube(matrix);
+    
+    return everything_except_scale;
+}
+
+function draw_top_fin_1(matrix_stack, angle1, angle2){
+    
+    
+    let everything_except_scale = matrix_list_multiply([
+	matrix_stack,
+	make_translation_matrix(-0.7, 0.6, 0),
+	rotor_to_matrix(
+	    rotor_multiply(
+		make_rotation_rotor(angle1, [0, 0, 1]),
+		make_rotation_rotor(angle2, [1, 0, 0])
+	    ))
+    ]);
+    
+    let matrix = matrix_multiply(everything_except_scale, make_scale_matrix(0.5, 0.5, 0.1));
+    
+    draw_cube(matrix);
+    
+    return everything_except_scale;
+}
+
+function draw_top_fin_2(matrix_stack, angle1, angle2){
+    let everything_except_scale = matrix_list_multiply([
+	matrix_stack,
+	make_translation_matrix(-0.2, 0.4, 0),
+	rotor_to_matrix(
+	    rotor_multiply(
+		make_rotation_rotor(angle1, [0, 0, 1]),
+		make_rotation_rotor(angle2, [1, 0, 0])
+	    ))
+    ]);
+    
+    let matrix = matrix_multiply(everything_except_scale, make_scale_matrix(0.2, 0.5, 0.08));
+    
+    draw_cube(matrix);
+    
+    return everything_except_scale;
+}
+
+function draw_tail_1(matrix_stack, angle){
+    
+    
+    let everything_except_scale = matrix_list_multiply([matrix_stack,
+	make_translation_matrix(-1.4, 0, 0),
+	rotor_to_matrix(make_rotation_rotor(angle, [0, 0, 1])),
+	make_translation_matrix(-0.5, 0, 0),
+    ]);
+    
+    let matrix = matrix_multiply(everything_except_scale, make_scale_matrix(1.5, 0.6, 0.8));
+
+    draw_cube(matrix);
+
+    return everything_except_scale;
+}
+
+function draw_tail_2(matrix_stack, angle){
+    
+    
+    let everything_except_scale = matrix_list_multiply([matrix_stack,
+	make_translation_matrix(-0.7, 0, 0),
+	rotor_to_matrix(make_rotation_rotor(angle, [0, 0, 1])),
+	make_translation_matrix(-0.5, 0, 0),
+    ]);
+    
+    let matrix = matrix_multiply(everything_except_scale, make_scale_matrix(1, 0.4, 0.6));
+
+    draw_cube(matrix);
+
+    return everything_except_scale;
+}
+
+function draw_tail_3(matrix_stack, angle){
+    
+    
+    let everything_except_scale = matrix_list_multiply([matrix_stack,
+	make_translation_matrix(-0.5, 0, 0),
+	rotor_to_matrix(make_rotation_rotor(angle, [0, 0, 1])),
+	make_translation_matrix(-0.5, 0, 0),
+    ]);
+    
+    let matrix = matrix_multiply(everything_except_scale, make_scale_matrix(1, 0.2, 2));
+
+    draw_cube(matrix);
+
+    return everything_except_scale;
+}
+
+function draw_head(matrix_stack, angle){
+    
+    
+    let everything_except_scale = matrix_list_multiply([matrix_stack,
+	make_translation_matrix(1, 0, 0),
+	rotor_to_matrix(make_rotation_rotor(angle, [0, 0, 1])),
+	make_translation_matrix(0.5, 0, 0),
+    ]);
+    
+    let matrix = matrix_multiply(everything_except_scale, make_scale_matrix(1, 0.8, 0.8));
+
+    draw_cube(matrix);
+
+    return everything_except_scale;
+}
+
+function draw_mouth_1(matrix_stack){
+    
+    
+    let everything_except_scale = matrix_list_multiply([matrix_stack,
+	make_translation_matrix(0.5, -0.1, 0),
+    ]);
+    
+    let matrix = matrix_multiply(everything_except_scale, make_scale_matrix(0.8, 0.3, 0.4));
+
+    draw_cube(matrix);
+
+    return everything_except_scale;
+}
+
+function draw_mouth_2(matrix_stack){
+    
+    
+    let everything_except_scale = matrix_list_multiply([matrix_stack,
+	make_translation_matrix(0.3, 0, 0),
+    ]);
+    
+    let matrix = matrix_multiply(everything_except_scale, make_scale_matrix(1, 0.2, 0.2));
+
+    draw_cube(matrix);
+
+    return everything_except_scale;
 }
 
 
 function draw_cube(model_matrix){
-    set_matrix(u_ModelMatrix, model_matrix);
-    
+    set_matrix(u_ModelMatrix, matrix_multiply(model_matrix, make_translation_matrix(-0.5, -0.5, -0.5)));
     gl.drawArrays(gl.TRIANGLES, 0, NUM_CUBE_VERTS);
 }
     
@@ -276,6 +462,10 @@ function matrix_multiply(mat1, mat2){
     });
 }
 
+function matrix_list_multiply(mats){
+    return mats.reduce((acc, next) => {return matrix_multiply(acc, next)}, IDENTITY_MATRIX);
+}
+
 function rotor_multiply([real1, bivector1], [real2, bivector2]){
 
     let real = real1*real2 - bivector1[0]*bivector2[0] - bivector1[1]*bivector2[1] - bivector1[2]*bivector2[2];
@@ -316,8 +506,6 @@ function update_sliders(){
     document.getElementById("yz_input").value = bivector[0]/Math.sin(angle/2);
     document.getElementById("zx_input").value = bivector[1]/Math.sin(angle/2);
     document.getElementById("xy_input").value = bivector[2]/Math.sin(angle/2);
-
-    
 }
 
 function make_global_rotor_from_sliders(){
@@ -332,13 +520,47 @@ function make_global_rotor_from_sliders(){
     global_rotor = make_rotation_rotor(global_rotation_angle, global_rotation_plane);
 }
 
+
+function get_angles_animation(animation_percent){
+    return [
+	//body1
+	Math.sin(animation_percent * TAU)/4,
+	//top fin 1
+	Math.sin(animation_percent * TAU)/8 + (1/8),
+	Math.sin(animation_percent * TAU)/4,
+	//top fin 2
+	Math.sin(animation_percent * TAU)/8 + 0.54,
+	Math.sin(animation_percent * TAU)/4,
+	//tail1
+	-Math.sin(animation_percent* TAU)/2,
+	//tail2
+	Math.sin(animation_percent * 2 * TAU)/2,
+	//tail3
+	Math.sin(animation_percent * 2 * TAU)/2,
+	//head
+	Math.sin(animation_percent * 4* TAU)/6,
+	//fins
+	Math.sin(animation_percent * TAU)/8 - 0.7,
+	Math.sin(animation_percent * TAU)/4 + 0.6
+    ];
+}
+
+function set_angle_sliders(angles){
+    SLIDER_IDS.forEach((elem_id, index) =>{
+	document.getElementById(elem_id).value = angles[index];
+    });
+}
+
+function get_angles_sliders(){
+    return SLIDER_IDS.map((elem_id, index) => {
+	return parseFloat(document.getElementById(elem_id).value);
+    });
+}
 const TRIANGLE_VERTS = new Float32Array([
     1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
 ]);
 
 const NUM_TRIANGLE_VERTS = TRIANGLE_VERTS.length / 3;
-
-
 
 const CUBE_VERTS = new Float32Array([
     0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0,
@@ -367,16 +589,39 @@ let ANDY_VERTEX_SHADER_SOURCE = `
 uniform mat4 global_matrix;
 uniform mat4 model_matrix;
 attribute vec3 attribute_model_position;
+varying vec3 model_pos;
+varying vec3 world_pos;
 void main() {
 gl_Position = global_matrix * model_matrix * vec4(attribute_model_position, 1.0);
+world_pos = vec3(global_matrix * model_matrix * vec4(attribute_model_position, 1.0));
+model_pos = attribute_model_position;
 }`;
 
 let ANDY_FRAGMENT_SHADER_SOURCE = `
 precision mediump float;
 uniform vec4 color;
+varying vec3 world_pos;
+varying vec3 model_pos;
 void main() {
-gl_FragColor = color;
+vec4 skin_color = mix(color, vec4(1.0, 1.0, 1.0, 1.0), clamp(model_pos.y/2.0, 0.0, 1.0));
+gl_FragColor = mix(skin_color, vec4(0.0, 0.0, 0.0, 1.0), clamp(-world_pos.y*1.5, 0.0, 1.0));
 }`;
 
+let IDENTITY_MATRIX = make_translation_matrix(0, 0, 0);
 
 let TAU = Math.PI * 2;
+
+
+let SLIDER_IDS = [
+    "body1_input",
+    "top_fin1_angle1_input",
+    "top_fin1_angle2_input",
+    "top_fin2_angle1_input",
+    "top_fin2_angle2_input",
+    "tail1_input",
+    "tail2_input",
+    "tail3_input",
+    "head_input",
+    "fins_angle1_input",
+    "fins_angle2_input"
+];
