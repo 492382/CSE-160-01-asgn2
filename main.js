@@ -16,6 +16,9 @@ let mouse_old_y = undefined;
 let mouse_dx = 0.01;
 let mouse_dy = 0.04;
 
+let cube_buffer;
+let circle_buffer;
+
 let do_animation = true;
 
 function main() {
@@ -158,7 +161,7 @@ function setupWebGL(canvas) {
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
 	const linkErrLog = gl.getProgramInfoLog(program);
 	console.error(
-	    `Shader program did not link successfully. Error log: ${linkErrLog}`,
+	    "Shader program did not link successfully. Error log: ", linkErrLog,
 	);
 	return null;
     }
@@ -166,11 +169,20 @@ function setupWebGL(canvas) {
     let a_Position = gl.getAttribLocation(program, "attribute_model_position");
     gl.enableVertexAttribArray(a_Position);
 
-    let position_buffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, position_buffer);
+    cube_buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, cube_buffer);
     gl.bufferData(gl.ARRAY_BUFFER, CUBE_VERTS, gl.DYNAMIC_DRAW);
-    gl.vertexAttribPointer(a_Position, 3, gl.FLOAT, false, 0, 0);
 
+
+    let circle_verts = Array(NUM_CIRCLE_SEGMENTS+1).fill().flatMap((_, index) => {
+	let radians = (index / NUM_CIRCLE_SEGMENTS) * TAU;
+	return [Math.cos(radians), Math.sin(radians), 0];
+    });
+    circle_verts.unshift(0, 0, 0);
+    circle_buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, circle_buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(circle_verts), gl.DYNAMIC_DRAW);
+    
     
     gl.useProgram(program);
 
@@ -207,6 +219,7 @@ function draw_animal(animation_percent){
 	angles = get_angles_sliders();
     }
 
+        
     gl.uniform4fv(u_Color, new Float32Array([1.0, 0.5, 0.5, 1.0]));
     let body_matrix = draw_body(IDENTITY_MATRIX, angles[0]);
 
@@ -227,21 +240,28 @@ function draw_animal(animation_percent){
 
     gl.uniform4fv(u_Color, new Float32Array([0.0, 0.0, 0.0, 1.0]));
 
-    let eyes_matrix = draw_eyes(head_matrix);
+    let _right_eye_matrix = draw_right_eye(head_matrix);
+    let _left_eye_matrix = draw_left_eye(head_matrix);
 }
 
-function draw_eyes(matrix_stack){
+function draw_right_eye(matrix_stack){
     let everything_except_scale = matrix_list_multiply([
 	matrix_stack,
-	make_translation_matrix(0.2, 0.2, 0),
+	make_translation_matrix(0.2, 0.2, -0.41),
     ]);
     
-    let matrix = matrix_multiply(everything_except_scale, make_scale_matrix(0.2, 0.2, 1));
+    let matrix = matrix_multiply(everything_except_scale, make_scale_matrix(0.1, 0.1, 1));
     
-    draw_cube(matrix);
+    draw_circle(matrix);
     
     return everything_except_scale;
 }
+
+function draw_left_eye(matrix_stack){
+    console.log("bruh");
+    return draw_right_eye(matrix_multiply(make_scale_matrix(1, 1, -1), matrix_stack));
+}
+
 
 function draw_right_fin(matrix_stack, angle1, angle2){
     let everything_except_scale = matrix_list_multiply([
@@ -264,7 +284,6 @@ function draw_right_fin(matrix_stack, angle1, angle2){
 
 function draw_left_fin(matrix_stack, angle1, angle2){
     return draw_right_fin(matrix_multiply(make_scale_matrix(1, 1, -1), matrix_stack), angle1, angle2);
-    
 }
 
 function draw_body(matrix_stack, angle){
@@ -413,8 +432,17 @@ function draw_mouth_2(matrix_stack){
 }
 
 
+function draw_circle(model_matrix){
+    set_matrix(u_ModelMatrix, model_matrix);
+    gl.bindBuffer(gl.ARRAY_BUFFER, circle_buffer);
+    gl.vertexAttribPointer(a_Position, 3, gl.FLOAT, false, 0, 0);
+    gl.drawArrays(gl.TRIANGLE_FAN, 0, NUM_CIRCLE_SEGMENTS + 2);
+}
+
 function draw_cube(model_matrix){
     set_matrix(u_ModelMatrix, matrix_multiply(model_matrix, make_translation_matrix(-0.5, -0.5, -0.5)));
+    gl.bindBuffer(gl.ARRAY_BUFFER, cube_buffer);
+    gl.vertexAttribPointer(a_Position, 3, gl.FLOAT, false, 0, 0);
     gl.drawArrays(gl.TRIANGLES, 0, NUM_CUBE_VERTS);
 }
     
@@ -583,6 +611,7 @@ const CUBE_VERTS = new Float32Array([
 ]);
 
 const NUM_CUBE_VERTS = CUBE_VERTS.length / 3;
+let NUM_CIRCLE_SEGMENTS = 10;
 
 
 let ANDY_VERTEX_SHADER_SOURCE = `
