@@ -20,16 +20,30 @@ let cube_buffer;
 let circle_buffer;
 
 let do_animation = true;
+let do_poke_animation = false;
 
 function main() {
     let canvas = document.getElementById("andy_canvas");
     setupWebGL(canvas);
     connectVariablesToGLSL();
     addUiCallbacks();
+    
 
+    let fps_counter = document.getElementById("fps_counter");
+    let last_5_frame_times = [0, 0, 0, 0, 0];
     let animation_loop = (timestamp_milis) => {
 	render(timestamp_milis);
 	requestAnimationFrame(animation_loop);
+	last_5_frame_times.shift();
+	last_5_frame_times.push(timestamp_milis);
+
+	let avg_milis_per_frame = last_5_frame_times.slice(1).reduce((total, time, index) => {
+	    return total + (time - last_5_frame_times[index]);
+	}, 0) / 4;
+
+	let avg_fps = 1000.0/avg_milis_per_frame;
+	
+    	fps_counter.innerText = `Avg fps in last 5 frames: ${avg_fps}`;
     };
     requestAnimationFrame(animation_loop);
 
@@ -67,8 +81,8 @@ function addUiCallbacks() {
 	.getElementById("animation_checkbox");
     
     checkbox.addEventListener("input", function(event) {
-	    do_animation = event.target.checked;
-	});
+	do_animation = event.target.checked;
+    });
 
     SLIDER_IDS.forEach((elem_id) =>{
 	document.getElementById(elem_id)
@@ -83,6 +97,13 @@ function addUiCallbacks() {
 
 
     canvas.addEventListener("mousedown", function(event) {
+	if(event.shiftKey){
+	    do_poke_animation = true;
+	    setTimeout(() => {
+		do_poke_animation = false;
+	    }, 2000);
+	}
+	
 	is_mouse_down = true;
 	
 	let x = event.clientX;
@@ -258,7 +279,6 @@ function draw_right_eye(matrix_stack){
 }
 
 function draw_left_eye(matrix_stack){
-    console.log("bruh");
     return draw_right_eye(matrix_multiply(make_scale_matrix(1, 1, -1), matrix_stack));
 }
 
@@ -287,8 +307,6 @@ function draw_left_fin(matrix_stack, angle1, angle2){
 }
 
 function draw_body(matrix_stack, angle){
-    
-    
     let everything_except_scale = matrix_list_multiply([
 	matrix_stack,
 	rotor_to_matrix(make_rotation_rotor(angle, [0, 0, 1]))
@@ -550,27 +568,51 @@ function make_global_rotor_from_sliders(){
 
 
 function get_angles_animation(animation_percent){
-    return [
-	//body1
-	Math.sin(animation_percent * TAU)/4,
-	//top fin 1
-	Math.sin(animation_percent * TAU)/8 + (1/8),
-	Math.sin(animation_percent * TAU)/4,
-	//top fin 2
-	Math.sin(animation_percent * TAU)/8 + 0.54,
-	Math.sin(animation_percent * TAU)/4,
-	//tail1
-	-Math.sin(animation_percent* TAU)/2,
-	//tail2
-	Math.sin(animation_percent * 2 * TAU)/2,
-	//tail3
-	Math.sin(animation_percent * 2 * TAU)/2,
-	//head
-	Math.sin(animation_percent * 4* TAU)/6,
-	//fins
-	Math.sin(animation_percent * TAU)/8 - 0.7,
-	Math.sin(animation_percent * TAU)/4 + 0.6
-    ];
+    if(do_poke_animation){
+	return [
+	    //body1
+	    Math.sin(animation_percent * 2 * TAU),
+	    //top fin 1
+	    Math.sin(animation_percent * 2 * TAU)/4 + (1/8),
+	    Math.sin(animation_percent * 2 * TAU)/2,
+	    //top fin 2
+	    Math.sin(animation_percent * 2 * TAU)/4 + 0.54,
+	    Math.sin(animation_percent * 2 * TAU)/2,
+	    //tail1
+	    -Math.sin(animation_percent * 4 * TAU),
+	    //tail2
+	    Math.sin(animation_percent * 4 * TAU) * 2,
+	    //tail3
+	    Math.sin(animation_percent * 4 * TAU) * 2,
+	    //head
+	    Math.sin(animation_percent * 8 * TAU),
+	    //fins
+	    Math.sin(animation_percent * TAU)/8 - 0.7,
+	    Math.sin(animation_percent * TAU)/4 + 0.6
+	];
+    }else{
+	return [
+	    //body1
+	    Math.sin(animation_percent * TAU)/4,
+	    //top fin 1
+	    Math.sin(animation_percent * TAU)/8 + (1/8),
+	    Math.sin(animation_percent * TAU)/4,
+	    //top fin 2
+	    Math.sin(animation_percent * TAU)/8 + 0.54,
+	    Math.sin(animation_percent * TAU)/4,
+	    //tail1
+	    -Math.sin(animation_percent* TAU)/2,
+	    //tail2
+	    Math.sin(animation_percent * 2 * TAU)/2,
+	    //tail3
+	    Math.sin(animation_percent * 2 * TAU)/2,
+	    //head
+	    Math.sin(animation_percent * 4* TAU)/6,
+	    //fins
+	    Math.sin(animation_percent * TAU)/8 - 0.7,
+	    Math.sin(animation_percent * TAU)/4 + 0.6
+	];
+    }
 }
 
 function set_angle_sliders(angles){
